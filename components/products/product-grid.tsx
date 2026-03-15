@@ -1,13 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { products, searchProducts } from "@/lib/products";
-import type { Category, FilterState, Product } from "@/lib/types";
+import { products, searchProducts, categories } from "@/lib/products";
+import type { Category, FilterState, Product, SortOption } from "@/lib/types";
 import { ProductCard } from "@/components/product-card";
 import { ProductFilters } from "./product-filters";
 import { Empty } from "@/components/ui/empty";
 import { SearchX } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function filterProducts(allProducts: Product[], filters: FilterState): Product[] {
   return allProducts.filter((product) => {
@@ -42,12 +49,19 @@ function sortProducts(products: Product[], sortBy: FilterState["sortBy"]): Produ
     case "price-high":
       return sorted.sort((a, b) => b.price - a.price);
     case "newest":
-      return sorted; // In a real app, sort by date
+      return sorted;
     case "popularity":
     default:
       return sorted.sort((a, b) => b.reviewCount - a.reviewCount);
   }
 }
+
+const sortOptions: { value: SortOption; label: string }[] = [
+  { value: "popularity", label: "Most Popular" },
+  { value: "newest", label: "Newest" },
+  { value: "price-low", label: "Price: Low to High" },
+  { value: "price-high", label: "Price: High to Low" },
+];
 
 export function ProductGrid() {
   const searchParams = useSearchParams();
@@ -55,12 +69,24 @@ export function ProductGrid() {
   const searchQuery = searchParams.get("search");
   const dealsFilter = searchParams.get("filter") === "deals";
 
+  // Check if a specific category is selected from navbar
+  const hasSpecificCategory = !!categoryParam;
+
   const [filters, setFilters] = useState<FilterState>({
     category: categoryParam || "all",
     priceRange: [0, 3000],
     brands: [],
     sortBy: "popularity",
   });
+
+  // Update category filter when URL param changes
+  useEffect(() => {
+    if (categoryParam && categoryParam !== filters.category) {
+      setFilters((prev) => ({ ...prev, category: categoryParam }));
+    } else if (!categoryParam && filters.category !== "all") {
+      setFilters((prev) => ({ ...prev, category: "all" }));
+    }
+  }, [categoryParam]);
 
   const filteredProducts = useMemo(() => {
     let baseProducts = products;
@@ -82,15 +108,61 @@ export function ProductGrid() {
     return sortProducts(filtered, filters.sortBy);
   }, [filters, searchQuery, dealsFilter]);
 
-  // Update category filter when URL param changes
-  useMemo(() => {
-    if (categoryParam && categoryParam !== filters.category) {
-      setFilters((prev) => ({ ...prev, category: categoryParam }));
-    }
-  }, [categoryParam, filters.category]);
+  // Get category name for display
+  const categoryName = categoryParam
+    ? categories.find((c) => c.id === categoryParam)?.name
+    : null;
 
+  const handleSortChange = (value: SortOption) => {
+    setFilters((prev) => ({ ...prev, sortBy: value }));
+  };
+
+  // If a specific category is selected, show simplified view without filters
+  if (hasSpecificCategory) {
+    return (
+      <div>
+        {/* Category header */}
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">{categoryName}</h2>
+            <p className="text-sm text-muted-foreground">
+              {filteredProducts.length} products
+            </p>
+          </div>
+          <Select value={filters.sortBy} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {filteredProducts.length === 0 ? (
+          <Empty
+            icon={SearchX}
+            title="No products found"
+            description="No products available in this category."
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:gap-6">
+            {filteredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Default view with filters for "All Products"
   return (
-    <div className="flex gap-8">
+    <div className="flex flex-col gap-4 lg:flex-row lg:gap-8">
       <ProductFilters
         filters={filters}
         onFilterChange={setFilters}
@@ -98,13 +170,23 @@ export function ProductGrid() {
       />
 
       <div className="flex-1">
-        {/* Desktop sort bar rendered by ProductFilters */}
-        <div className="hidden lg:block">
-          <ProductFilters
-            filters={filters}
-            onFilterChange={setFilters}
-            productCount={filteredProducts.length}
-          />
+        {/* Desktop sort bar */}
+        <div className="mb-4 hidden items-center justify-between lg:flex">
+          <p className="text-sm text-muted-foreground">
+            Showing {filteredProducts.length} products
+          </p>
+          <Select value={filters.sortBy} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {filteredProducts.length === 0 ? (
