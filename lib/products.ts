@@ -347,6 +347,8 @@ export const products: Product[] = [
     brand: "Microsoft",
     category: "gaming",
     price: 499,
+    originalPrice: 549,
+    discount: 9,
     rating: 4.8,
     reviewCount: 6543,
     image: "https://images.unsplash.com/photo-1621259182978-fbf93132d53d?w=400&h=400&fit=crop",
@@ -359,6 +361,7 @@ export const products: Product[] = [
       "Quick Resume": "Yes",
     },
     inStock: true,
+    bestDeal: true,
   },
   {
     id: "g3",
