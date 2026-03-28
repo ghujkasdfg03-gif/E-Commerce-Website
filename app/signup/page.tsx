@@ -57,11 +57,16 @@ export default function SignupPage() {
       return;
     }
 
-    const result = await signup(name, email, password, phone || undefined);
-    if (result.success) {
-      router.push("/account");
-    } else {
-      setError(result.error || "Signup failed");
+    try {
+      const result = await signup(name, email, password, phone || undefined);
+      if (result.success) {
+        router.push("/account");
+      } else {
+        setError(result.error || "Signup failed");
+        setIsSubmitting(false);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
       setIsSubmitting(false);
     }
   };

@@ -88,7 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const hashedPassword = await hashPassword(password);
-    if (found.password !== hashedPassword) {
+    if (found.password === hashedPassword) {
+      // Already migrated, proceed
+    } else if (found.password === password) {
+      // Legacy plain-text password matches, migrate it
+      const users2 = getStoredUsers();
+      const migrated = users2.map((u) =>
+        u.id === found.id ? { ...u, password: hashedPassword } : u
+      );
+      saveUsers(migrated);
+    } else {
       return { success: false, error: "Incorrect password" };
     }
 

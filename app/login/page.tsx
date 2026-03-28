@@ -42,11 +42,16 @@ export default function LoginPage() {
       return;
     }
 
-    const result = await login(email, password);
-    if (result.success) {
-      router.push("/account");
-    } else {
-      setError(result.error || "Login failed");
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        router.push("/account");
+      } else {
+        setError(result.error || "Login failed");
+        setIsSubmitting(false);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
       setIsSubmitting(false);
     }
   };
