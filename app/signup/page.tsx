@@ -34,7 +34,7 @@ export default function SignupPage() {
     return null;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
@@ -57,7 +57,7 @@ export default function SignupPage() {
       return;
     }
 
-    const result = signup(name, email, password, phone || undefined);
+    const result = await signup(name, email, password, phone || undefined);
     if (result.success) {
       router.push("/account");
     } else {
