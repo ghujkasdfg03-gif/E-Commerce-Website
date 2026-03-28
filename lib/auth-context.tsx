@@ -53,6 +53,10 @@ function stripPassword(user: User): Omit<User, "password"> {
   return rest;
 }
 
+function looksLikeHash(s: string): boolean {
+  return /^[0-9a-f]{64}$/.test(s);
+}
+
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
@@ -90,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hashedPassword = await hashPassword(password);
     if (found.password === hashedPassword) {
       // Already migrated, proceed
-    } else if (found.password === password) {
+    } else if (!looksLikeHash(found.password) && found.password === password) {
       // Legacy plain-text password matches, migrate it
       const users2 = getStoredUsers();
       const migrated = users2.map((u) =>
