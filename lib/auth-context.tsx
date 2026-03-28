@@ -1,10 +1,20 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import type { User } from "./types";
+
+/**
+ * User type returned from the API (no password field).
+ * The `id` is the MongoDB _id as a string.
+ */
+interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+}
 
 interface AuthContextType {
-  user: Omit<User, "password"> | null;
+  user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (name: string, email: string, password: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
@@ -14,145 +24,122 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USERS_STORAGE_KEY = "electrostore_users";
+// Key used to persist the current user session in localStorage
 const CURRENT_USER_KEY = "electrostore_current_user";
 
-function getStoredUsers(): User[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(USERS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveUsers(users: User[]) {
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-}
-
-function getCurrentUserId(): string | null {
+/**
+ * Retrieve the stored user from localStorage (session persistence across refreshes).
+ */
+function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem(CURRENT_USER_KEY);
+    const stored = localStorage.getItem(CURRENT_USER_KEY);
+    return stored ? JSON.parse(stored) : null;
   } catch {
     return null;
   }
 }
 
-function setCurrentUserId(userId: string | null) {
-  if (userId) {
-    localStorage.setItem(CURRENT_USER_KEY, userId);
+/**
+ * Save the current user to localStorage so the session survives page refreshes.
+ */
+function saveCurrentUser(user: AuthUser | null) {
+  if (user) {
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
   } else {
     localStorage.removeItem(CURRENT_USER_KEY);
   }
 }
 
-function stripPassword(user: User): Omit<User, "password"> {
-  const { password: _, ...rest } = user;
-  return rest;
-}
-
-function looksLikeHash(s: string): boolean {
-  return /^[0-9a-f]{64}$/.test(s);
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Omit<User, "password"> | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // On mount, restore user session from localStorage
   useEffect(() => {
-    const userId = getCurrentUserId();
-    if (userId) {
-      const users = getStoredUsers();
-      const found = users.find((u) => u.id === userId);
-      if (found) {
-        setUser(stripPassword(found));
-      }
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
     }
     setIsLoading(false);
   }, []);
 
+  /**
+   * Login: calls the /api/auth/login endpoint.
+   * On success, stores the user in state and localStorage.
+   */
   const login = useCallback(async (email: string, password: string) => {
-    const users = getStoredUsers();
-    const found = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase()
-    );
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (!found) {
-      return { success: false, error: "No account found with this email" };
-    }
+      const data = await res.json();
 
-    const hashedPassword = await hashPassword(password);
-    if (found.password === hashedPassword) {
-      // Already migrated, proceed
-    } else if (!looksLikeHash(found.password) && found.password === password) {
-      // Legacy plain-text password matches, migrate it
-      const users2 = getStoredUsers();
-      const migrated = users2.map((u) =>
-        u.id === found.id ? { ...u, password: hashedPassword } : u
-      );
-      saveUsers(migrated);
-    } else {
-      return { success: false, error: "Incorrect password" };
-    }
-
-    setUser(stripPassword(found));
-    setCurrentUserId(found.id);
-    return { success: true };
-  }, []);
-
-  const signup = useCallback(
-    async (name: string, email: string, password: string, phone?: string) => {
-      const users = getStoredUsers();
-      const exists = users.some(
-        (u) => u.email.toLowerCase() === email.toLowerCase()
-      );
-
-      if (exists) {
-        return { success: false, error: "An account with this email already exists" };
+      if (!res.ok) {
+        return { success: false, error: data.error || "Login failed" };
       }
 
-      const hashedPassword = await hashPassword(password);
-      const newUser: User = {
-        id: crypto.randomUUID(),
-        name,
-        email: email.toLowerCase(),
-        phone: phone || undefined,
-        password: hashedPassword,
-      };
-
-      const updatedUsers = [...users, newUser];
-      saveUsers(updatedUsers);
-      setUser(stripPassword(newUser));
-      setCurrentUserId(newUser.id);
+      const loggedInUser: AuthUser = data.user;
+      setUser(loggedInUser);
+      saveCurrentUser(loggedInUser);
       return { success: true };
+    } catch {
+      return { success: false, error: "Something went wrong. Please try again." };
+    }
+  }, []);
+
+  /**
+   * Signup: calls the /api/auth/signup endpoint.
+   * On success, stores the new user in state and localStorage.
+   */
+  const signup = useCallback(
+    async (name: string, email: string, password: string, phone?: string) => {
+      try {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password, phone }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          return { success: false, error: data.error || "Signup failed" };
+        }
+
+        const newUser: AuthUser = data.user;
+        setUser(newUser);
+        saveCurrentUser(newUser);
+        return { success: true };
+      } catch {
+        return { success: false, error: "Something went wrong. Please try again." };
+      }
     },
     []
   );
 
+  /**
+   * Logout: clears user from state and localStorage.
+   */
   const logout = useCallback(() => {
     setUser(null);
-    setCurrentUserId(null);
+    saveCurrentUser(null);
   }, []);
 
+  /**
+   * Update profile: updates user fields locally.
+   * (Profile updates are stored in localStorage for now;
+   *  a full implementation would call an API endpoint.)
+   */
   const updateProfile = useCallback(
     (updates: { name?: string; phone?: string }) => {
       if (!user) return;
-      const users = getStoredUsers();
-      const updatedUsers = users.map((u) =>
-        u.id === user.id ? { ...u, ...updates } : u
-      );
-      saveUsers(updatedUsers);
-      setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      saveCurrentUser(updatedUser);
     },
     [user]
   );
