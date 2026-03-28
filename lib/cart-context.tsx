@@ -86,11 +86,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const currentUserId = user?.id ?? null;
     const previousUserId = prevUserIdRef.current;
+    let cancelled = false;
 
     // User just logged in (transition from no user to a user)
     if (currentUserId && currentUserId !== previousUserId) {
       fetchCartFromDb(currentUserId).then((dbItems) => {
-        setItems(dbItems);
+        if (!cancelled) {
+          // Skip the next sync since we just fetched these items from DB
+          skipSyncRef.current = true;
+          setItems(dbItems);
+        }
       });
     }
 
@@ -100,23 +105,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     prevUserIdRef.current = currentUserId;
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
+  // Ref to skip syncing on initial render and after fetching from DB
+  const skipSyncRef = useRef(true);
+
   /**
-   * Helper: update items and sync to DB in one step.
+   * Sync cart to DB whenever items change and user is logged in.
+   * Skips the initial render and DB-fetched updates to avoid redundant writes.
+   */
+  useEffect(() => {
+    if (skipSyncRef.current) {
+      skipSyncRef.current = false;
+      return;
+    }
+    if (user?.id) {
+      syncCartToDb(user.id, items);
+    }
+  }, [items, user]);
+
+  /**
+   * Helper: update items via a pure state updater (no side effects).
+   * DB sync happens automatically via the useEffect above.
    */
   const updateAndSync = useCallback(
     (updater: (currentItems: CartItem[]) => CartItem[]) => {
-      setItems((currentItems) => {
-        const newItems = updater(currentItems);
-        // Sync to database if user is logged in
-        if (user?.id) {
-          syncCartToDb(user.id, newItems);
-        }
-        return newItems;
-      });
+      setItems(updater);
     },
-    [user]
+    []
   );
 
   const addToCart = useCallback(
