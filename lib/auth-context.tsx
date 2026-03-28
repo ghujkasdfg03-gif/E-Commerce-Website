@@ -6,8 +6,8 @@ import type { User } from "./types";
 interface AuthContextType {
   user: Omit<User, "password"> | null;
   isLoading: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
-  signup: (name: string, email: string, password: string, phone?: string) => { success: boolean; error?: string };
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, email: string, password: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateProfile: (updates: { name?: string; phone?: string }) => void;
 }
@@ -53,6 +53,18 @@ function stripPassword(user: User): Omit<User, "password"> {
   return rest;
 }
 
+function looksLikeHash(s: string): boolean {
+  return /^[0-9a-f]{64}$/.test(s);
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Omit<User, "password"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = useCallback((email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const users = getStoredUsers();
     const found = users.find(
       (u) => u.email.toLowerCase() === email.toLowerCase()
@@ -79,7 +91,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: "No account found with this email" };
     }
 
-    if (found.password !== password) {
+    const hashedPassword = await hashPassword(password);
+    if (found.password === hashedPassword) {
+      // Already migrated, proceed
+    } else if (!looksLikeHash(found.password) && found.password === password) {
+      // Legacy plain-text password matches, migrate it
+      const users2 = getStoredUsers();
+      const migrated = users2.map((u) =>
+        u.id === found.id ? { ...u, password: hashedPassword } : u
+      );
+      saveUsers(migrated);
+    } else {
       return { success: false, error: "Incorrect password" };
     }
 
@@ -89,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signup = useCallback(
-    (name: string, email: string, password: string, phone?: string) => {
+    async (name: string, email: string, password: string, phone?: string) => {
       const users = getStoredUsers();
       const exists = users.some(
         (u) => u.email.toLowerCase() === email.toLowerCase()
@@ -99,12 +121,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "An account with this email already exists" };
       }
 
+      const hashedPassword = await hashPassword(password);
       const newUser: User = {
         id: crypto.randomUUID(),
         name,
         email: email.toLowerCase(),
         phone: phone || undefined,
-        password,
+        password: hashedPassword,
       };
 
       const updatedUsers = [...users, newUser];

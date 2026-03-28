@@ -38,7 +38,8 @@ export default function AccountPage() {
   }
 
   const handleSave = () => {
-    updateProfile({ name, phone: phone || undefined });
+    if (!name.trim()) return;
+    updateProfile({ name: name.trim(), phone: phone || undefined });
     setIsEditing(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
