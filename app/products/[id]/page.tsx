@@ -1,11 +1,36 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getProductById, getProductsByCategory } from "@/lib/products";
+import dbConnect from "@/lib/mongodb";
+import Product from "@/lib/models/Product";
+import type { Product as ProductType } from "@/lib/types";
 import { ProductGallery } from "@/components/products/product-gallery";
 import { ProductInfo } from "@/components/products/product-info";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
+
+function transformProduct(p: Record<string, unknown>): ProductType {
+  return {
+    id: p.productId as string,
+    name: p.name as string,
+    brand: p.brand as string,
+    category: p.category as ProductType["category"],
+    price: p.price as number,
+    originalPrice: p.originalPrice as number | undefined,
+    discount: p.discount as number | undefined,
+    rating: p.rating as number,
+    reviewCount: p.reviewCount as number,
+    image: p.image as string,
+    images: p.images as string[] | undefined,
+    description: p.description as string,
+    specifications: p.specifications instanceof Map
+      ? Object.fromEntries(p.specifications)
+      : (p.specifications as Record<string, string>),
+    inStock: p.inStock as boolean,
+    featured: p.featured as boolean | undefined,
+    bestDeal: p.bestDeal as boolean | undefined,
+  };
+}
 
 interface ProductPageProps {
   params: Promise<{ id: string }>;
@@ -13,30 +38,39 @@ interface ProductPageProps {
 
 export async function generateMetadata({ params }: ProductPageProps) {
   const { id } = await params;
-  const product = getProductById(id);
+  await dbConnect();
+  const product = await Product.findOne({ productId: id }).lean();
 
   if (!product) {
     return { title: "Product Not Found | ElectroStore" };
   }
 
   return {
-    title: `${product.name} | ElectroStore`,
-    description: product.description,
+    title: `${(product as Record<string, unknown>).name} | ElectroStore`,
+    description: (product as Record<string, unknown>).description as string,
   };
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params;
-  const product = getProductById(id);
+  await dbConnect();
+  const productDoc = await Product.findOne({ productId: id }).lean();
 
-  if (!product) {
+  if (!productDoc) {
     notFound();
   }
 
+  const product = transformProduct(productDoc as Record<string, unknown>);
+
   // Get related products from the same category
-  const relatedProducts = getProductsByCategory(product.category)
-    .filter((p) => p.id !== product.id)
-    .slice(0, 4);
+  const relatedDocs = await Product.find({
+    category: product.category,
+    productId: { $ne: id },
+  })
+    .limit(4)
+    .lean();
+
+  const relatedProducts = (relatedDocs as Record<string, unknown>[]).map(transformProduct);
 
   return (
     <div className="bg-background py-8">

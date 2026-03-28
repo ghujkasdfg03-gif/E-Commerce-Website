@@ -2,11 +2,13 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { products, searchProducts, categories } from "@/lib/products";
+import { categories } from "@/lib/products";
+import { fetchProducts } from "@/lib/api";
 import type { Category, FilterState, Product, SortOption } from "@/lib/types";
 import { ProductCard } from "@/components/product-card";
 import { ProductFilters } from "./product-filters";
 import { Empty } from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 import { SearchX } from "lucide-react";
 import {
   Select,
@@ -15,30 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-function filterProducts(allProducts: Product[], filters: FilterState): Product[] {
-  return allProducts.filter((product) => {
-    // Category filter
-    if (filters.category !== "all" && product.category !== filters.category) {
-      return false;
-    }
-
-    // Price filter
-    if (
-      product.price < filters.priceRange[0] ||
-      product.price > filters.priceRange[1]
-    ) {
-      return false;
-    }
-
-    // Brand filter
-    if (filters.brands.length > 0 && !filters.brands.includes(product.brand)) {
-      return false;
-    }
-
-    return true;
-  });
-}
 
 function sortProducts(products: Product[], sortBy: FilterState["sortBy"]): Product[] {
   const sorted = [...products];
@@ -79,6 +57,35 @@ export function ProductGrid() {
     sortBy: "popularity",
   });
 
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch products from MongoDB via API
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    fetchProducts({
+      category: filters.category !== "all" ? filters.category : undefined,
+      search: searchQuery || undefined,
+      deals: dealsFilter || undefined,
+      sortBy: filters.sortBy,
+    })
+      .then((data) => {
+        if (!cancelled) {
+          setAllProducts(data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.category, filters.sortBy, searchQuery, dealsFilter]);
+
   // Update category filter when URL param changes
   useEffect(() => {
     if (categoryParam && categoryParam !== filters.category) {
@@ -89,24 +96,20 @@ export function ProductGrid() {
   }, [categoryParam]);
 
   const filteredProducts = useMemo(() => {
-    let baseProducts = products;
+    let result = allProducts;
 
-    // Apply search filter
-    if (searchQuery) {
-      baseProducts = searchProducts(searchQuery);
+    // Apply price filter (client-side for responsiveness)
+    result = result.filter(
+      (p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]
+    );
+
+    // Apply brand filter (client-side for responsiveness)
+    if (filters.brands.length > 0) {
+      result = result.filter((p) => filters.brands.includes(p.brand));
     }
 
-    // Apply deals filter
-    if (dealsFilter) {
-      baseProducts = baseProducts.filter((p) => p.bestDeal || p.discount);
-    }
-
-    // Apply other filters
-    const filtered = filterProducts(baseProducts, filters);
-
-    // Sort products
-    return sortProducts(filtered, filters.sortBy);
-  }, [filters, searchQuery, dealsFilter]);
+    return sortProducts(result, filters.sortBy);
+  }, [allProducts, filters.priceRange, filters.brands, filters.sortBy]);
 
   // Get category name for display
   const categoryName = categoryParam
@@ -116,6 +119,14 @@ export function ProductGrid() {
   const handleSortChange = (value: SortOption) => {
     setFilters((prev) => ({ ...prev, sortBy: value }));
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Spinner className="h-8 w-8" />
+      </div>
+    );
+  }
 
   // If a specific category is selected, show simplified view without filters
   if (hasSpecificCategory) {
