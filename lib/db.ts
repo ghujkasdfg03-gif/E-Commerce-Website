@@ -1,13 +1,9 @@
 import mongoose from "mongoose";
 
 // MongoDB connection URI from environment variables
-const MONGO_URI = process.env.MONGO_URI;
-
-if (!MONGO_URI) {
-  throw new Error(
-    "Please define the MONGO_URI environment variable inside .env.local"
-  );
-}
+// Note: We read the env var lazily inside connectToDatabase() so that
+// `next build` can collect page data without requiring the variable at
+// build time (it is only needed at runtime).
 
 /**
  * Global cache for the Mongoose connection.
@@ -45,9 +41,16 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     return cached.conn;
   }
 
+  const MONGO_URI = process.env.MONGO_URI;
+  if (!MONGO_URI) {
+    throw new Error(
+      "Please define the MONGO_URI environment variable inside .env.local"
+    );
+  }
+
   // Create a new connection promise if one doesn't exist
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGO_URI as string, {
+    cached.promise = mongoose.connect(MONGO_URI, {
       bufferCommands: false,
     });
   }

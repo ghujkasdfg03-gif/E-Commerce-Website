@@ -5,7 +5,7 @@ import { useCart } from "@/lib/cart-context";
 import { CartItems } from "@/components/cart/cart-items";
 import { CartSummary } from "@/components/cart/cart-summary";
 import { Button } from "@/components/ui/button";
-import { Empty } from "@/components/ui/empty";
+import { Empty, EmptyMedia, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { ShoppingCart } from "lucide-react";
 
 export default function CartPage() {
@@ -19,11 +19,16 @@ export default function CartPage() {
         </h1>
 
         {items.length === 0 ? (
-          <Empty
-            icon={ShoppingCart}
-            title="Your cart is empty"
-            description="Looks like you haven't added anything to your cart yet. Browse our products and find something you'll love!"
-          >
+          <Empty>
+            <EmptyMedia variant="icon">
+              <ShoppingCart />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>Your cart is empty</EmptyTitle>
+              <EmptyDescription>
+                Looks like you haven't added anything to your cart yet. Browse our products and find something you'll love!
+              </EmptyDescription>
+            </EmptyHeader>
             <Button asChild className="mt-4">
               <Link href="/products">Start Shopping</Link>
             </Button>
