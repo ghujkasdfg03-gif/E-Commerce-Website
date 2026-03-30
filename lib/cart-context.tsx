@@ -26,16 +26,19 @@ function calculateTotals(items: CartItem[]): { totalItems: number; totalPrice: n
 }
 
 /**
- * Sync the current cart items to the database for the given user.
+ * Sync the current cart items to the database for the authenticated user.
  * Only sends productId and quantity (not the full product object).
+ * Uses JWT token for authentication.
  */
-async function syncCartToDb(userId: string, items: CartItem[]) {
+async function syncCartToDb(token: string, items: CartItem[]) {
   try {
     await fetch("/api/cart", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
-        userId,
         items: items.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
@@ -48,12 +51,15 @@ async function syncCartToDb(userId: string, items: CartItem[]) {
 }
 
 /**
- * Fetch cart items from the database for the given user.
+ * Fetch cart items from the database for the authenticated user.
  * Resolves productIds back to full Product objects using the static catalog.
+ * Uses JWT token for authentication.
  */
-async function fetchCartFromDb(userId: string): Promise<CartItem[]> {
+async function fetchCartFromDb(token: string): Promise<CartItem[]> {
   try {
-    const res = await fetch(`/api/cart?userId=${userId}`);
+    const res = await fetch("/api/cart", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!res.ok) return [];
 
     const data = await res.json();
@@ -89,11 +95,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     // User just logged in (transition from no user to a user)
-    if (currentUserId && currentUserId !== previousUserId) {
+    if (currentUserId && currentUserId !== previousUserId && user?.token) {
       // Prevent the sync effect from writing the stale/empty local cart to DB
       // before fetchCartFromDb completes (both effects run in the same batch)
       skipSyncRef.current = true;
-      fetchCartFromDb(currentUserId).then((dbItems) => {
+      fetchCartFromDb(user.token).then((dbItems) => {
         if (!cancelled) {
           // Skip the next sync since we just fetched these items from DB
           skipSyncRef.current = true;
@@ -126,8 +132,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       skipSyncRef.current = false;
       return;
     }
-    if (user?.id) {
-      syncCartToDb(user.id, items);
+    if (user?.token) {
+      syncCartToDb(user.token, items);
     }
   }, [items, user]);
 

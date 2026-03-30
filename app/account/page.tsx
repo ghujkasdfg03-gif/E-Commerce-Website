@@ -37,12 +37,14 @@ export default function AccountPage() {
     return null;
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) return;
-    updateProfile({ name: name.trim(), phone: phone || undefined });
-    setIsEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    const result = await updateProfile({ name: name.trim(), phone: phone || undefined });
+    if (result?.success) {
+      setIsEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
   };
 
   const handleLogout = () => {

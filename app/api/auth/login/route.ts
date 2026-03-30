@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectToDatabase } from "@/lib/db";
 import User from "@/models/User";
+import { signToken } from "@/lib/auth-middleware";
 
 /**
  * POST /api/auth/login
@@ -43,8 +44,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return user data without the password
+    // Generate JWT token
+    const token = signToken({
+      userId: user._id.toString(),
+      email: user.email,
+    });
+
+    // Return user data without the password, plus token
     return NextResponse.json({
+      token,
       user: {
         id: user._id.toString(),
         name: user.name,

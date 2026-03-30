@@ -11,6 +11,7 @@ interface AuthUser {
   name: string;
   email: string;
   phone?: string;
+  token: string;
 }
 
 interface AuthContextType {
@@ -19,7 +20,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (name: string, email: string, password: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  updateProfile: (updates: { name?: string; phone?: string }) => void;
+  updateProfile: (updates: { name?: string; phone?: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || "Login failed" };
       }
 
-      const loggedInUser: AuthUser = data.user;
+      const loggedInUser: AuthUser = { ...data.user, token: data.token };
       setUser(loggedInUser);
       saveCurrentUser(loggedInUser);
       return { success: true };
@@ -110,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { success: false, error: data.error || "Signup failed" };
         }
 
-        const newUser: AuthUser = data.user;
+        const newUser: AuthUser = { ...data.user, token: data.token };
         setUser(newUser);
         saveCurrentUser(newUser);
         return { success: true };
@@ -130,16 +131,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Update profile: updates user fields locally.
-   * (Profile updates are stored in localStorage for now;
-   *  a full implementation would call an API endpoint.)
+   * Update profile: persists changes to MongoDB via the profile API.
    */
   const updateProfile = useCallback(
-    (updates: { name?: string; phone?: string }) => {
-      if (!user) return;
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      saveCurrentUser(updatedUser);
+    async (updates: { name?: string; phone?: string }) => {
+      if (!user) return { success: false, error: "Not logged in" };
+      try {
+        const res = await fetch("/api/auth/profile", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user.token}`,
+          },
+          body: JSON.stringify(updates),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          return { success: false, error: data.error || "Update failed" };
+        }
+
+        const updatedUser: AuthUser = { ...data.user, token: user.token };
+        setUser(updatedUser);
+        saveCurrentUser(updatedUser);
+        return { success: true };
+      } catch {
+        return { success: false, error: "Something went wrong. Please try again." };
+      }
     },
     [user]
   );

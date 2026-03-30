@@ -2,36 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Cart from "@/models/Cart";
 import mongoose from "mongoose";
+import { authenticateRequest, isAuthError } from "@/lib/auth-middleware";
+import { getProductById } from "@/lib/products";
 
 /**
- * GET /api/cart?userId=...
- * Fetches the cart items for a given user.
+ * GET /api/cart
+ * Fetches the cart items for the authenticated user.
+ * Requires JWT token in Authorization header.
  */
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
-      );
-    }
-
-    // Validate that userId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return NextResponse.json(
-        { error: "Invalid userId" },
-        { status: 400 }
-      );
-    }
+    const auth = authenticateRequest(request);
+    if (isAuthError(auth)) return auth;
 
     await connectToDatabase();
 
-    // Find the cart for this user, or return an empty items array
     const cart = await Cart.findOne({
-      userId: new mongoose.Types.ObjectId(userId),
+      userId: new mongoose.Types.ObjectId(auth.userId),
     });
 
     return NextResponse.json({
@@ -48,27 +35,17 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/cart
- * Saves/updates the entire cart for a user.
+ * Saves/updates the entire cart for the authenticated user.
  * Uses upsert so a cart is created if it doesn't exist yet.
- * Body: { userId: string, items: Array<{ productId: string, quantity: number }> }
+ * Requires JWT token in Authorization header.
+ * Body: { items: Array<{ productId: string, quantity: number }> }
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId, items } = await request.json();
+    const auth = authenticateRequest(request);
+    if (isAuthError(auth)) return auth;
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return NextResponse.json(
-        { error: "Invalid userId" },
-        { status: 400 }
-      );
-    }
+    const { items } = await request.json();
 
     if (!Array.isArray(items)) {
       return NextResponse.json(
@@ -77,11 +54,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate each item
+    for (const item of items) {
+      if (!item.productId || typeof item.productId !== "string") {
+        return NextResponse.json(
+          { error: "Each item must have a valid productId string" },
+          { status: 400 }
+        );
+      }
+      if (!item.quantity || typeof item.quantity !== "number" || item.quantity < 1) {
+        return NextResponse.json(
+          { error: "Each item must have a quantity >= 1" },
+          { status: 400 }
+        );
+      }
+      // Validate product exists in catalog
+      const product = getProductById(item.productId);
+      if (!product) {
+        return NextResponse.json(
+          { error: `Product ${item.productId} not found in catalog` },
+          { status: 400 }
+        );
+      }
+    }
+
     await connectToDatabase();
+
+    const userId = new mongoose.Types.ObjectId(auth.userId);
 
     // Upsert: update existing cart or create a new one
     const cart = await Cart.findOneAndUpdate(
-      { userId: new mongoose.Types.ObjectId(userId) },
+      { userId },
       { items },
       { upsert: true, new: true, runValidators: true }
     );
