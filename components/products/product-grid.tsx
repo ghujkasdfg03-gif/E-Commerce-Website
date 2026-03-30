@@ -6,7 +6,7 @@ import { products, searchProducts, categories } from "@/lib/products";
 import type { Category, FilterState, Product, SortOption } from "@/lib/types";
 import { ProductCard } from "@/components/product-card";
 import { ProductFilters } from "./product-filters";
-import { Empty } from "@/components/ui/empty";
+import { Empty, EmptyMedia, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { SearchX } from "lucide-react";
 import {
   Select,
@@ -144,11 +144,15 @@ export function ProductGrid() {
         </div>
 
         {filteredProducts.length === 0 ? (
-          <Empty
-            icon={SearchX}
-            title="No products found"
-            description="No products available in this category."
-          />
+          <Empty>
+            <EmptyMedia variant="icon">
+              <SearchX />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>No products found</EmptyTitle>
+              <EmptyDescription>No products available in this category.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:gap-6">
             {filteredProducts.map((product) => (
@@ -190,11 +194,15 @@ export function ProductGrid() {
         </div>
 
         {filteredProducts.length === 0 ? (
-          <Empty
-            icon={SearchX}
-            title="No products found"
-            description="Try adjusting your filters or search query to find what you're looking for."
-          />
+          <Empty>
+            <EmptyMedia variant="icon">
+              <SearchX />
+            </EmptyMedia>
+            <EmptyHeader>
+              <EmptyTitle>No products found</EmptyTitle>
+              <EmptyDescription>Try adjusting your filters or search query to find what you're looking for.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 xl:gap-6">
             {filteredProducts.map((product) => (
