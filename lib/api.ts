@@ -11,6 +11,10 @@ function getConfiguredBaseUrl() {
     return __API_BASE_URL__;
   }
 
+  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+
   if (typeof window !== "undefined" && window.__API_BASE_URL__) {
     return window.__API_BASE_URL__;
   }
