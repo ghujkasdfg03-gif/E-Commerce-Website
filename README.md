@@ -1,35 +1,105 @@
-# E-Commerce-Website
+# E-Commerce Website
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+ElectroStore is a full-stack electronics storefront prepared for a university MERN-style submission. The repository now includes a client/server structure that matches the rubric more closely:
 
-## Built with v0
+- `client/`: React + Vite + React Router
+- `server/`: Node.js + Express REST APIs
+- `MongoDB`: Mongoose models for users, carts, orders, addresses, and wishlists
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+The earlier Next.js code is still present in the repo as a backup/reference, but the submission-oriented path is the new MERN structure above.
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_oT1q1G1k8Vdf3gcPvzrPiryBrmi3)
+## Features
 
-## Getting Started
+- React component-based customer and admin UI
+- Responsive storefront
+- Signup and login with JWT authentication
+- Password hashing with bcrypt
+- Role-based access control
+- Product listing and product details
+- Cart persistence for logged-in users
+- Wishlist management
+- Saved addresses
+- Checkout and order history
+- Admin dashboard with order status updates
 
-First, run the development server:
+## Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+- Frontend: React, React Router, Vite, Tailwind CSS
+- Backend: Node.js, Express
+- Database: MongoDB, Mongoose
+- Authentication: JWT, bcryptjs
+
+## Project Structure
+
+```text
+client/
+  src/
+    App.tsx
+    pages/
+    shims/
+server/
+  src/
+    index.ts
+    routes/
+app/
+components/
+lib/
+models/
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create a `.env` file in the project root using `.env.example`:
 
-## Learn More
+```env
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_long_random_secret
+ADMIN_EMAILS=your_email@example.com
+CLIENT_URL=http://localhost:5173
+PORT=5000
+```
 
-To learn more, take a look at the following resources:
+## Run the MERN Version Locally
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+Install dependencies:
 
-<a href="https://v0.app/chat/api/kiro/clone/lalit-7bit/E-Commerce-Website" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+```bash
+npm install
+```
+
+Start frontend and backend together:
+
+```bash
+npm run dev:mern
+```
+
+This starts:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:5000`
+
+Useful scripts:
+
+```bash
+npm run client:dev
+npm run client:build
+npm run server:dev
+npm run server:start
+npm run dev:mern
+```
+
+## API Areas
+
+- `/api/auth`
+- `/api/cart`
+- `/api/addresses`
+- `/api/wishlist`
+- `/api/orders`
+- `/api/admin`
+
+## Submission Notes
+
+- The MERN-oriented submission path is `client/` + `server/`
+- MongoDB is used for schema design and CRUD operations
+- JWT, bcrypt, and admin/customer role separation are implemented
+- The legacy Next.js app remains only as a fallback while the MERN path is being finalized
